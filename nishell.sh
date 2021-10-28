@@ -80,10 +80,14 @@ displayhelp_slice_coeff() {(
 set -e
 echo "Required:"
 echo "img"
-echo "Optional:"
-echo "bckimg bckimgname imgname outdir outname cmap ncmap ncols nrows arange srange crange size autobox tmp debug"
+echo "Optional I/O:"
+echo "bckimg bckimgname imgname outdir outname"
+echo "Figure look:"
+echo "cmap ncmap ncols nrows arange srange crange disprange size cmapres autobox"
+echo "System:"
+echo "tmp debug"
 echo "Extra:"
-echo "skip_axial skip_sagittal skip_coronal only_axial only_sagittal only_coronal hide_cbar"
+echo "skip_axial skip_sagittal skip_coronal only_axial only_sagittal only_coronal hide_cbar clusters"
 return ${1:-0}
 )}
 
@@ -106,6 +110,7 @@ nrows=1
 arange=none
 srange=none
 crange=none
+disprange=none
 size=none
 axial=yes
 sagittal=yes
@@ -113,6 +118,8 @@ coronal=yes
 autobox=no
 outdir=none
 outname=none
+cmapres=256
+clusters=no
 tmp=.
 debug=no
 
@@ -133,7 +140,10 @@ do
 		-arange)		arange="$2";shift;;
 		-srange)		srange="$2";shift;;
 		-crange)		crange="$2";shift;;
+		-disprange)		disprange="$2";shift;;
 		-size)			size="$2";shift;;
+		-cmapres)		cmapres="$2";shift;;
+		-clusters)		clusters=yes;;
 
 		-outdir)	outdir=$2;shift;;
 		-outname)	outname=$2;shift;;
@@ -167,9 +177,11 @@ checkreqvar img
 [[ ${outdir} == "none" ]] && outdir=.
 outname=${outdir%/}/$( basename ${outname} )
 tmp=${tmp}/tmp_sc_$( basename ${outname})
+[[ ${clusters} == "yes" ]] && cmap=clusters50 && cmapres=50 && disprange=50
+
 
 ### print more input
-checkoptvar bckimg bckimgname imgname outdir outname cmap ncmap ncols nrows arange srange crange size autobox showcbar axial coronal sagittal tmp debug
+checkoptvar bckimg bckimgname imgname outdir outname cmap ncmap ncols nrows arange srange crange disprange size autobox showcbar axial coronal sagittal tmp debug clusters cmapres disprange
 
 ### Remove nifti suffix
 for var in img bckimg
@@ -198,6 +210,15 @@ then
 else
 	size=( ${size} )
 fi
+
+#Check displayrange
+if [[ ${disprange} != "none" ]]
+then
+	nr=$( wc -w <<< ${disprange} )
+	[[ ${nr} -lt 2 ]] && disprange="0 ${disprange}"
+	[[ ${nr} -gt 2 ]] && disprange=$( awk '{print $1 " " $2}' <<< ${disprange} )
+fi
+
 
 for ax in "${axes[@]}"
 do
@@ -230,8 +251,9 @@ do
 	runfsleyes="${runfsleyes} --performance 3 --movieSync"
 	[[ ${bckimg} != "none" ]] && runfsleyes="${runfsleyes} ${bckimg}.nii.gz --name \"${bckimgname}\" --overlayType volume --alpha 100.0 --brightness 49.75000000000001 --contrast 49.90029860765409 --cmap greyscale --negativeCmap greyscale --displayRange 0.0 631.9035656738281 --clippingRange 0.0 631.9035656738281 --gamma 0.0 --cmapResolution 256 --interpolation none --invert --numSteps 100 --blendFactor 0.1 --smoothing 0 --resolution 100 --numInnerSteps 10 --clipMode intersection --volume 0"
 	runfsleyes="${runfsleyes} ${img}.nii.gz --name \"${imgname}\" --overlayType volume --alpha 100.0 --cmap ${cmap}"
-	[[ ${ncmap} != "none" ]] && runfsleyes="${runfsleyes} --negativeCmap ${ncmap} --useNegativeCmap "
-	runfsleyes="${runfsleyes} --gamma 0.0 --cmapResolution 256 --interpolation none --numSteps 100 --blendFactor 0.1 --smoothing 0 --resolution 100 --numInnerSteps 10 --clipMode intersection --volume 0"
+	[[ ${ncmap} != "none" ]] && runfsleyes="${runfsleyes} --negativeCmap ${ncmap} --useNegativeCmap"
+	[[ ${disprange} != "none" ]] && runfsleyes="${runfsleyes} --displayRange ${disprange}"
+	runfsleyes="${runfsleyes} --gamma 0.0 --cmapResolution ${cmapres} --interpolation none --numSteps 100 --blendFactor 0.1 --smoothing 0 --resolution 100 --numInnerSteps 10 --clipMode intersection --volume 0"
 	eval ${runfsleyes}
 done
 
