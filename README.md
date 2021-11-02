@@ -3,7 +3,11 @@ nishell
 
 This is a set of commands that I find myself running frequently.
 In order to avoid repetition and reduce carpal tunnel risks, I collected them together.
-Maybe you'll find them useful, maybe not. The quick and dirty batch-able wrap around `fsleyes` is quite neat though.
+Maybe you'll find them useful, maybe not. The quick and dirty batch-able wrap around `fsleyes` (`slice_coeffs`) is quite neat though.
+
+Usage
+-----
+Clone this repo and source `nishell.sh` in your `.bashrc`, `.bash_profile`, or whatever file you prefer to source things.
 
 Warning
 -------
@@ -16,7 +20,7 @@ Also, if you want to help with documentation (like help messages), please do. Or
 
 Real warning
 ------------
-In order for `slice_coeff` to work, you need to have `fsleyes` installed. I think the minimal version required is `1.0.5`.
+In order for `slice_coeffs` to work, you need to have `fsleyes` installed. I think the minimal version required is `1.0.5`.
 For full disclosure, I installed it via `pip` because I'm chaotic-aligned like that.
 
 If you have problem running it, you might need to change the command call to `FSLeyes`, or source the right path to `fsleyes`.
