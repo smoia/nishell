@@ -1,3 +1,16 @@
+# 0.0.2 (Mon Jan 24 2022)
+
+#### ⚠️ Pushed to `master`
+
+- Merge remote-tracking branch 'origin/master' ([@smoia](https://github.com/smoia))
+- Fix version call ([@smoia](https://github.com/smoia))
+
+#### Authors: 1
+
+- Stefano Moia ([@smoia](https://github.com/smoia))
+
+---
+
 # 0.0.1 (Wed Nov 03 2021)
 
 :tada: This release contains work from a new contributor! :tada:
