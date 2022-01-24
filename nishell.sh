@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-version() {
+version() {(
 	echo "Version 0.0.1"
-}
+)}
 
 checkreqvar() {(
 set -e
