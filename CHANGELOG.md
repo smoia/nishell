@@ -1,3 +1,15 @@
+# 0.0.3 (Wed Jan 26 2022)
+
+#### ⚠️ Pushed to `master`
+
+- See if special character is special for real ([@smoia](https://github.com/smoia))
+
+#### Authors: 1
+
+- Stefano Moia ([@smoia](https://github.com/smoia))
+
+---
+
 # 0.0.2 (Mon Jan 24 2022)
 
 #### ⚠️ Pushed to `master`
