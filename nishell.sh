@@ -80,7 +80,7 @@ displayhelp_slice_coeff() {(
 set -e
 echo "Required:"
 echo "img"
-echo "Optional I/O:"
+echo "Optional IO:"
 echo "bckimg bckimgname imgname outdir outname"
 echo "Figure look:"
 echo "cmap ncmap ncols nrows arange srange crange disprange size cmapres autobox"
