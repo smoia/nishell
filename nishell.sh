@@ -1,41 +1,83 @@
 #!/usr/bin/env bash
 
-version() {(
-	echo "Version 0.0.1"
-)}
+version() {
+	local script_file=${1:-''}
+	local script_dir
+	script_dir=$( dirname "$(readlink -f "${BASH_SOURCE[0]}")" )
+	tag=0
+	[ $( git -C "${script_dir}" rev-parse --is-inside-work-tree 2>/dev/null ) == "true" ] && tag=$( git -C "${script_dir}" describe --tags --always )
+	echo "nishell, $( basename ${script_file} ), version ${tag}"
+	echo ""
+}
 
-checkreqvar() {(
-set -e
-reqvar=( "$@" )
+#########################
 
-for var in "${reqvar[@]}"
-do
-	if [[ -z ${!var+x} ]]
-	then
-		echo "${var} is unset, stop program" && return 1
-	else
-		echo "${var} is set to ${!var}"
-	fi
-done
-)}
+SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-checkoptvar() {(
-set -e
-optvar=( "$@" )
+brain_extract () {
+	${SCRIPT_DIR}/brainmask.sh "$@"
+}
 
-for var in "${optvar[@]}"
-do
-	echo "${var} is set to ${!var}"
-done
-)}
+compute_fddvars () {
+	${SCRIPT_DIR}/compute_fddvars.py "$@"
+}
 
-removeniisfx() {(
-set -e
-echo ${1%.nii*}
-)}
+compute_pepolar () {
+	${SCRIPT_DIR}pepolar.sh "$@"
+}
 
-if_missing_do() {(
-set -e
+#########################
+
+# Check input
+checkreqvar() {
+	local reqvar=("$@")
+	local vartype
+
+	for var in "${reqvar[@]}"; do
+		if [[ -z ${!var+x} ]]; then
+			echo "${var} is unset, exiting program" && exit 1
+		fi
+
+		vartype=$(declare -p ${var} 2>/dev/null)
+
+		if [[ ${vartype} =~ declare\ \-a\ ([A-Za-z_][A-Za-z0-9_]*)=([\'\"])?(.*)\2 ]]
+		then
+			echo "${var} is an indexed array ${BASH_REMATCH[3]}"
+		elif [[ ${vartype} =~ declare\ \-A\ ([A-Za-z_][A-Za-z0-9_]*)=([\'\"])?(.*)\2 ]]
+		then
+			echo "${var} is an associative array ${BASH_REMATCH[3]}"
+		else
+			echo "${var} is set to ${!var}"
+		fi
+	done
+}
+
+
+checkoptvar() {
+	local optvar=("$@")
+	local vartype
+
+	for var in "${optvar[@]}"
+	do
+		vartype=$(declare -p ${var} 2>/dev/null)
+
+		if [[ ${vartype} =~ declare\ \-a\ ([A-Za-z_][A-Za-z0-9_]*)=([\'\"])?(.*)\2 ]]
+		then
+			echo "${var} is an indexed array ${BASH_REMATCH[3]}"
+		elif [[ ${vartype} =~ declare\ \-A\ ([A-Za-z_][A-Za-z0-9_]*)=([\'\"])?(.*)\2 ]]
+		then
+			echo "${var} is an associative array ${BASH_REMATCH[3]}"
+		else
+			echo "${var} is set to ${!var}"
+		fi
+	done
+}
+
+removeniisfx() {
+	echo ${1%.nii*}
+}
+
+if_missing_do() {
 case $1 in
 	mkdir )
 		if [ ! -d $2 ]
@@ -48,7 +90,7 @@ case $1 in
 		if [ ! -e $2 ]
 		then
 			echo "$2 not found"
-			return 1
+			exit 1
 		fi
 		;;
 	* )
@@ -59,22 +101,97 @@ case $1 in
 				copy ) echo "copying $2";		cp $2 $3 ;;
 				move ) echo "moving $2";		mv $2 $3 ;;
 				mask ) echo "binarising $2";	fslmaths $2 -bin $3 ;;
-				* ) echo "and you shouldn't see this"; return 1;;
+				* ) echo "and you shouldn't see this"; exit 2;;
 			esac
 		fi
 		;;
 esac
-)}
+}
 
-replace_and() {(
-set -e
+replace_and() {
 case $1 in
-	mkdir) if [ -d $2 ]; then echo "$2 exists already, removing first"; rm -rf $2; fi; mkdir -p $2 ;;
+	mkdir) if [ -d $2 ]; then echo "$2 exists already, removing first"; rm -rf $2; fi; mkdir -p "${@:2}" ;;
 	touch) if [ -d $2 ]; then echo "$2 exists already, removing first"; rm -rf $2; fi; touch $2 ;;
-	* ) echo "This is wrong"; return 1;;
+	* ) echo "This is wrong"; exit 2;;
 esac
-)}
+}
 
+
+##########################
+
+parse_filename_from_json() {
+	local bidslabels="task acq ce rec dir run mod echo flip inv mt part recording chunk suffix"
+	if [[ -f $2 ]]
+	then
+		if [[ $(jq .$1 $2) != "null" ]];
+		then
+			local bidsinfo=''
+			local key
+			for key in ${bidslabels};
+			do
+				local value
+				value=$(jq -r .$1.${key} $2)
+				[[ ${value} != "null" ]] && bidsinfo="${bidsinfo}_${key}-${value}"
+			done
+			echo "${bidsinfo}"
+		else
+			echo "none"
+		fi
+	else
+		exit 1
+	fi
+}
+
+extract_BIDS_entities() {
+	local fname="$1"
+	local -n ent=$2
+	local last_entity="${3:-chunk}"
+
+	ent=()
+
+	local entities=(sub ses task acq ce rec dir run mod echo flip inv mt part recording chunk)
+
+	local regex='^'
+	local idx=2
+	local capture_map=()
+
+	for e in "${entities[@]}"
+	do
+		regex+="(${e}-([^_]+))?_?"
+		capture_map[$idx]=$e
+		[[ "$e" == "$last_entity" ]] && ((fssfx=idx+1))
+		((idx+=2))
+	done
+
+	regex+='(([^.]+))?(\..*)?$'
+
+	ent[root]=$( realpath ${fname%%/sub-*} )
+	[[ ${ent[root]} == *"/derivatives/"* ]] && ent[deriv]=${ent[root]} && ent[root]=${ent[root]%%/derivatives/*}
+	ent[modality]=$( basename $(dirname $( realpath ${fname} ) ) )
+
+	fname=$( basename ${fname} )
+	fname=${fname#"${fname%%sub-*}"}
+
+	[[ ${fname} =~ ${regex} ]] || return 1
+
+	for i in "${!capture_map[@]}"
+	do
+		[[ -n ${BASH_REMATCH[$i]} ]] && ent[${capture_map[$i]}]=${BASH_REMATCH[$i]}
+	done
+
+	ent[suffix]="${BASH_REMATCH[$idx]}"
+	ent[extension]="${BASH_REMATCH[$idx+1]}"
+
+	ent[filesuffix]=""
+	for i in $(seq ${fssfx} 2 ${idx} )
+	do
+		[[ -n "${BASH_REMATCH[$i]}" ]] && ent[filesuffix]+=${BASH_REMATCH[i]}_
+	done
+	ent[filesuffix]=${ent[filesuffix]%_}
+}
+
+
+###########################
 
 displayhelp_slice_coeff() {(
 set -e
@@ -264,3 +381,18 @@ eval ${runconvert}
 if [[ ${debug} == "yes" ]]; then set +x; else rm -rf ${tmp}; fi
 
 )}
+
+
+# Copyright 2026, Stefano Moia
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
